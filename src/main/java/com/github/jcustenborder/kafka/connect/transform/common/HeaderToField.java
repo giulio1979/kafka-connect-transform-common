@@ -63,10 +63,12 @@ public class HeaderToField<R extends ConnectRecord<R>> extends BaseKeyValueTrans
 
     public SchemaAndValue apply(ConnectRecord record, Struct input) {
       Struct result = new Struct(this.newSchema);
-      for (Field field : input.schema().fields()) {
-        String fieldName = field.name();
-        Object fieldValue = input.get(field);
-        result.put(fieldName, fieldValue);
+      if (input != null) {
+        for (Field field : input.schema().fields()) {
+          String fieldName = field.name();
+          Object fieldValue = input.get(field);
+          result.put(fieldName, fieldValue);
+        }
       }
       for (ConversionHandler handler : this.conversionHandlers) {
         handler.convert(record, result);
@@ -81,7 +83,21 @@ public class HeaderToField<R extends ConnectRecord<R>> extends BaseKeyValueTrans
 
 
   Map<Schema, Conversion> schemaCache = new HashMap<>();
+  Conversion emptySchemaConversion;
 
+  Conversion emptySchemaConversion() {
+    if (this.emptySchemaConversion == null) {
+      log.info("emptySchemaConversion() - Building new schema from header mappings only");
+      SchemaBuilder builder = SchemaBuilder.struct();
+      List<ConversionHandler> handlers = new ArrayList<>(this.config.mappings.size());
+      for (HeaderToFieldConfig.HeaderToFieldMapping mapping : this.config.mappings) {
+        builder.field(mapping.field, mapping.schema);
+        handlers.add(ConversionHandler.of(mapping.schema, mapping.header, mapping.field));
+      }
+      this.emptySchemaConversion = Conversion.of(builder.build(), handlers);
+    }
+    return this.emptySchemaConversion;
+  }
 
   Conversion conversion(Schema schema) {
     return this.schemaCache.computeIfAbsent(schema, s -> {
@@ -105,6 +121,16 @@ public class HeaderToField<R extends ConnectRecord<R>> extends BaseKeyValueTrans
   protected SchemaAndValue processStruct(R record, Schema inputSchema, Struct input) {
     Conversion conversion = conversion(inputSchema);
     return conversion.apply(record, input);
+  }
+
+  @Override
+  protected SchemaAndValue process(R record, SchemaAndValue schemaAndValue) {
+    if (schemaAndValue.schema() == null && schemaAndValue.value() == null) {
+      log.trace("process() - Input schema and value are null, creating struct from headers only");
+      Conversion conversion = emptySchemaConversion();
+      return conversion.apply(record, null);
+    }
+    return super.process(record, schemaAndValue);
   }
 
   @Override
