@@ -42,10 +42,10 @@ import java.util.stream.Collectors;
     "maximum precision specified.")
 @DocumentationNote("The Confluent AvroConverter uses a default precision of 64 which can be too large " +
     "for some database systems.")
-public class SetMaximumPrecision<R extends ConnectRecord<R>> extends BaseKeyValueTransformation<R> {
+public abstract class SetMaximumPrecision<R extends ConnectRecord<R>> extends BaseKeyValueTransformation<R> {
   private static final Logger log = LoggerFactory.getLogger(SetMaximumPrecision.class);
 
-  public SetMaximumPrecision(boolean isKey) {
+  protected SetMaximumPrecision(boolean isKey) {
     super(isKey);
   }
 
