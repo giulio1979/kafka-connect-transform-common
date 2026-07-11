@@ -64,6 +64,19 @@
         <system>github</system>
         <url>https://github.com/jcustenborder/kafka-connect-transform-common/issues</url>
     </issueManagement>
+    <dependencyManagement>
+        <dependencies>
+            <!-- connect-utils-testing (test scope) transitively requests
+                 conjure-java-jackson-serialization:4.18.1, which was yanked from
+                 Maven Central (earliest surviving version is 6.16.0). Pin to an
+                 existing version so dependency resolution succeeds. Test-only. -->
+            <dependency>
+                <groupId>com.palantir.conjure.java.runtime</groupId>
+                <artifactId>conjure-java-jackson-serialization</artifactId>
+                <version>6.16.0</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
     <dependencies>
         <dependency>
             <groupId>org.apache.kafka</groupId>
@@ -121,6 +134,45 @@
                     <supportUrl>${project.issueManagement.url}</supportUrl>
                     <supportSummary>Support provided through community involvement.</supportSummary>
                 </configuration>
+            </plugin>
+            <!-- Build a self-contained "fat" jar bundling all runtime dependencies
+                 (guava, freemarker, xerces, jackson, connect-utils, ...) so the plugin
+                 drops into /opt/kafka/plugins as a single artifact. Kafka- and slf4j-
+                 provided classes are excluded because the Connect worker supplies them. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.5.1</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <shadedArtifactAttached>true</shadedArtifactAttached>
+                            <shadedClassifierName>fat</shadedClassifierName>
+                            <artifactSet>
+                                <excludes>
+                                    <exclude>org.apache.kafka:*</exclude>
+                                    <exclude>org.slf4j:*</exclude>
+                                </excludes>
+                            </artifactSet>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                        <exclude>module-info.class</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
